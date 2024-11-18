@@ -8,7 +8,7 @@ export const pixabayApi = createApi({
       query: ({ query, page }) => ({
         url: '',
         params: {
-          key: 'YOUR_PIXABAY_API_KEY',
+          key: '9360209-444ade903467890f43278d237',
           q: query,
           page,
         },

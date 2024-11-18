@@ -1,105 +1,85 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  FlatList,
-  Image,
-  TouchableOpacity,
-  StyleSheet,
-} from 'react-native';
+import { View, Text, FlatList, Image, Button, TextInput, StyleSheet } from 'react-native';
 import { useGetImagesQuery } from '../api/pixabayApi';
+import { useDispatch, useSelector } from 'react-redux';
+import { addBookmark, removeBookmark } from '../features/bookmarks/bookmarksSlice';
+import { RootState } from '../redux/store';
 
 export default function HomeScreen() {
-  const [query, setQuery] = useState('nature');
-  const [page, setPage] = useState(1);
-  const [bookmarked, setBookmarked] = useState<string[]>([]);
+  const [query, setQuery] = useState(''); // State untuk pencarian
+  const [page, setPage] = useState(1);    // State untuk paginasi
+  const { data, isLoading, isFetching } = useGetImagesQuery({ query, page });
+  const dispatch = useDispatch();
+  const bookmarks = useSelector((state: RootState) => state.bookmark.bookmarks);
 
-  const { data, isFetching, isError } = useGetImagesQuery({ query, page });
-
-  const handleLoadMore = () => {
-    if (!isFetching && data?.hits?.length) {
-      setPage((prevPage) => prevPage + 1);
-    }
+  // Fungsi untuk memuat lebih banyak data
+  const loadMore = () => {
+    if (!isFetching) setPage(page + 1);
   };
-
-  const handleSearch = (text: string) => {
-    setQuery(text);
-    setPage(1); // Reset ke halaman pertama
-  };
-
-  const toggleBookmark = (id: string) => {
-    if (bookmarked.includes(id)) {
-      setBookmarked(bookmarked.filter((item) => item !== id));
-    } else {
-      setBookmarked([...bookmarked, id]);
-    }
-  };
-
-  const renderItem = ({ item }: any) => (
-    <View style={styles.card}>
-      <Image source={{ uri: item.webformatURL }} style={styles.image} />
-      <Text style={styles.text}>User: {item.user}</Text>
-      <Text style={styles.text}>Tags: {item.tags}</Text>
-      <TouchableOpacity
-        onPress={() => toggleBookmark(item.id)}
-        style={[
-          styles.bookmarkButton,
-          bookmarked.includes(item.id) && styles.bookmarked,
-        ]}
-      >
-        <Text style={styles.bookmarkText}>
-          {bookmarked.includes(item.id) ? 'Unbookmark' : 'Bookmark'}
-        </Text>
-      </TouchableOpacity>
-    </View>
-  );
 
   return (
     <View style={styles.container}>
+      {/* Search Bar */}
       <TextInput
-        style={styles.search}
+        style={styles.searchInput}
         placeholder="Search images..."
-        onChangeText={handleSearch}
         value={query}
+        onChangeText={setQuery}
+        onSubmitEditing={() => setPage(1)} // Reset ke halaman 1 saat pencarian
       />
-      {isError && <Text style={styles.error}>Error fetching images</Text>}
-      <FlatList
-        data={data?.hits || []}
-        keyExtractor={(item) => item.id.toString()}
-        renderItem={renderItem}
-        onEndReached={handleLoadMore}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={isFetching ? <Text>Loading...</Text> : null}
-      />
+
+      {/* Daftar Gambar */}
+      {isLoading ? (
+        <Text>Loading...</Text>
+      ) : (
+        <FlatList
+          data={data?.hits || []}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item, index }) => (
+            <View style={styles.imageContainer}>
+              <Image source={{ uri: item.previewURL }} style={styles.image} />
+              <Text>{item.user}</Text>
+              <Text>{item.tags}</Text>
+
+              {/* Tombol Bookmark */}
+              {bookmarks.find((bookmark) => bookmark.id === item.id) ? (
+                <Button
+                  title="Remove Bookmark"
+                  color="red"
+                  onPress={() => dispatch(removeBookmark(item.id))}
+                />
+              ) : (
+                <Button
+                  title="Add Bookmark"
+                  onPress={() => dispatch(addBookmark(item))}
+                />
+              )}
+            </View>
+          )}
+          onEndReached={loadMore} // Infinite Scroll
+          onEndReachedThreshold={0.5}
+        />
+      )}
+
+      {/* Daftar Bookmark */}
+      <View style={styles.bookmarkContainer}>
+        <Text style={styles.bookmarkTitle}>Bookmarks:</Text>
+        {bookmarks.map((bookmark, idx) => (
+          <View key={idx} style={styles.bookmarkItem}>
+            <Text>{bookmark.user}</Text>
+          </View>
+        ))}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 10 },
-  search: {
-    borderWidth: 1,
-    borderRadius: 5,
-    padding: 10,
-    marginBottom: 10,
-  },
-  card: {
-    marginBottom: 20,
-    padding: 10,
-    borderWidth: 1,
-    borderRadius: 5,
-  },
-  image: { width: '100%', height: 200 },
-  text: { marginTop: 5 },
-  bookmarkButton: {
-    marginTop: 10,
-    padding: 10,
-    backgroundColor: '#ddd',
-    alignItems: 'center',
-    borderRadius: 5,
-  },
-  bookmarked: { backgroundColor: '#ffd700' },
-  bookmarkText: { fontWeight: 'bold' },
-  error: { color: 'red', textAlign: 'center', marginVertical: 10 },
+  searchInput: { borderWidth: 1, borderColor: '#ccc', marginBottom: 10, padding: 8, borderRadius: 5 },
+  imageContainer: { marginBottom: 20, alignItems: 'center' },
+  image: { width: 200, height: 200, marginBottom: 5 },
+  bookmarkContainer: { marginTop: 20 },
+  bookmarkTitle: { fontSize: 18, fontWeight: 'bold' },
+  bookmarkItem: { marginVertical: 5 },
 });
